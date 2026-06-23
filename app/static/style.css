@@ -47,6 +47,11 @@ tr.row:hover td { background: var(--panel-2); }
 .match .win { font-weight: 700; }
 .comp { color: var(--muted); }
 .model { color: var(--accent); font-family: ui-monospace, monospace; font-size: .85rem; }
+.mbadge { display: inline-block; font-size: .68rem; font-family: ui-monospace, monospace;
+  padding: .08rem .35rem; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); margin-right: .2rem; }
+.mbadge.on { background: var(--accent); color: #06121f; border-color: var(--accent); font-weight: 700; }
+.resultTag { margin-left: .5rem; background: #173a23; color: var(--h); border-radius: 5px;
+  padding: .05rem .4rem; font-size: .78rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .bar-col { width: 230px; }
 
 .bar { display: flex; height: 22px; border-radius: 5px; overflow: hidden; background: var(--panel-2); }
@@ -90,4 +95,29 @@ ul.cs .scp { color: var(--accent); font-weight: 700; font-variant-numeric: tabul
 table.ou { width: 100%; border-collapse: collapse; margin-top: .3rem; }
 table.ou th, table.ou td { padding: .25rem .4rem; text-align: center; font-size: .85rem; border-bottom: 1px solid var(--line); }
 table.ou td:first-child, table.ou th:first-child { text-align: left; color: var(--muted); }
+
+/* nav + fixtures management */
+.nav { display: flex; gap: .8rem; }
+.nav a { color: var(--muted); text-decoration: none; font-size: .85rem; }
+.nav a:hover { color: var(--text); }
+.matchtitle .actual { margin-left: .6rem; background: var(--panel-2); border: 1px solid var(--line);
+  border-radius: 6px; padding: .1rem .5rem; font-size: 1rem; color: var(--accent); }
+form.addfix { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin: 1rem 0 1.3rem;
+  padding: .9rem; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; }
+form.addfix input, form.addfix select { background: var(--panel); color: var(--text);
+  border: 1px solid var(--line); border-radius: 7px; padding: .4rem .55rem; font-size: .9rem; }
+form.addfix .chk { color: var(--muted); font-size: .85rem; display: flex; gap: .3rem; align-items: center; }
+button { background: var(--accent); color: #06121f; border: 0; border-radius: 7px; padding: .45rem .8rem;
+  font-weight: 700; font-size: .88rem; cursor: pointer; }
+button:hover { filter: brightness(1.08); }
+.badge { font-size: .72rem; font-weight: 700; padding: .12rem .5rem; border-radius: 5px; text-transform: uppercase; letter-spacing: .03em; }
+.badge.pending { background: #3a2f1a; color: #e0b252; }
+.badge.forecast { background: #16324a; color: var(--accent); }
+.badge.played { background: #173a23; color: var(--h); }
+.result-form { display: flex; gap: .3rem; align-items: center; }
+.result-form input { width: 3rem; background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--line); border-radius: 6px; padding: .25rem; text-align: center; }
+.result-form button { padding: .25rem .55rem; font-size: .8rem; }
+.match a { color: var(--text); text-decoration: none; }
+.match a:hover { color: var(--accent); }
 .foot { max-width: 980px; margin: 1.4rem auto 2.4rem; padding: 0 1.2rem; color: var(--muted); font-size: .8rem; }

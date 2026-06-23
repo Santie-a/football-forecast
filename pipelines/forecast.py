@@ -16,23 +16,12 @@ import argparse
 import pandas as pd
 
 from football_forecast.data.schema import Fixture
-from football_forecast.forecast.bundle import build_markets
-from football_forecast.forecast.scoreline import scoreline_matrix
+from football_forecast.forecast.bundle import markets_for_model
 from football_forecast.models.dixon_coles import DixonColesModel, MaherModel
 from football_forecast.models.elo import EloModel
 from football_forecast.store.forecasts import DEFAULT_PATH, write_forecasts
 
 FACTORIES = {"elo": EloModel, "maher": MaherModel, "dixon_coles": DixonColesModel}
-
-
-def _markets_for(model, fixture: Fixture) -> dict[str, dict]:
-    """Full bundle for goal models; 1X2 only for result-only models."""
-    if hasattr(model, "rates"):
-        lh, la = model.rates(fixture)
-        rho = getattr(model, "rho_", None) if getattr(model, "use_dc", False) else None
-        max_goals = getattr(model, "max_goals", 10)
-        return build_markets(scoreline_matrix(lh, la, max_goals, rho))
-    return {"1x2": model.predict_1x2(fixture)}
 
 
 def main() -> None:
@@ -53,7 +42,7 @@ def main() -> None:
         fixture = Fixture(
             r.home, r.away, pd.Timestamp(r.date).date(), r.competition, r.comp_type, bool(r.neutral)
         )
-        for market, payload in _markets_for(model, fixture).items():
+        for market, payload in markets_for_model(model, fixture).items():
             rows.append(
                 {
                     "match_id": r.match_id,

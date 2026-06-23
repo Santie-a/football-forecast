@@ -7,13 +7,27 @@ from __future__ import annotations
 
 import numpy as np
 
+from football_forecast.data.schema import Fixture
 from football_forecast.forecast.markets import (
     correct_score,
     one_x_two,
     over_under,
 )
+from football_forecast.forecast.scoreline import scoreline_matrix
 
 DEFAULT_LINES = (1.5, 2.5, 3.5)
+
+
+def markets_for_model(model, fixture: Fixture) -> dict[str, dict]:
+    """Full market bundle for a goal model (exposes `rates`); 1X2 only for a
+    result-only model (e.g. Elo). The single place that decides what each model
+    type publishes — reused by the forecast pipeline and the queue drainer."""
+    if hasattr(model, "rates"):
+        lh, la = model.rates(fixture)
+        rho = getattr(model, "rho_", None) if getattr(model, "use_dc", False) else None
+        max_goals = getattr(model, "max_goals", 10)
+        return build_markets(scoreline_matrix(lh, la, max_goals, rho))
+    return {"1x2": model.predict_1x2(fixture)}
 
 
 def build_markets(

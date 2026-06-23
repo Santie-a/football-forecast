@@ -70,6 +70,27 @@ python -m pipelines.forecast --model <...>
 > phase's research write-up in `research/notes/` (and surfaced in the session
 > summary), so any result can be regenerated and audited later.
 
+## Importing fixtures (any competition)
+
+Upcoming fixtures and results live in the writable fixtures store (separate from
+the forecasts store — see architecture.md "Fixtures & the forecast queue").
+
+```bash
+# From the raw results source (carries blank-score future fixtures ingest drops):
+python -m pipelines.import_fixtures --source raw --competition "FIFA World Cup" \
+    --since 2026-06-01 --forecast-asof 2026-06-11
+# From a plain CSV (date,home,away[,competition,comp_type,neutral,home_goals,away_goals]):
+python -m pipelines.import_fixtures --source csv --csv data/fixtures/my.csv
+# WC2026 convenience preset (wrapper over the above):
+python -m pipelines.wc2026
+
+python -m pipelines.process_queue        # forecast the queued (unplayed) fixtures
+```
+
+Played matches register with their result; unplayed ones are queued. `--forecast-asof`
+attaches a leakage-free pre-event forecast to the played matches. Reusable logic is
+in `football_forecast.fixtures_import`; the pipelines are thin wrappers.
+
 ## Publishing forecasts to the Pi
 
 1. Run `pipelines.forecast` on the PC → refreshes `artifacts/forecasts/forecasts.sqlite`.

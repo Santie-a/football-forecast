@@ -39,6 +39,22 @@ on the store schema.
 runners; `app/` only reads the store.
 **Why:** Keeps the modelling core testable and reusable; keeps the Pi image light.
 
+### 008 — Fixtures store + forecast queue (Pi-writable)   (accepted) 2026-06-22
+**Decision:** Upcoming fixtures and user-entered results live in a **separate,
+writable** `fixtures.sqlite` (not the read-only, PC-synced forecasts store). Each
+row carries its own forecast bundle. The **queue** = rows with no forecast yet;
+draining it (`fixtures_queue.drain`) is **cheap inference** with an already-fitted
+model, so it runs on the Pi (synced model pickle) or the PC. Adding a *result*
+needs no compute here; folding results into model training is a later PC job.
+**Why:** Keeps the one-way PC→Pi sync intact (no two-writer clobber of the
+forecasts store), while letting the Pi accept fixtures/results and compute forecasts
+without training — consistent with "Pi displays + cheap inference, never trains"
+(001). The DAL (`store/fixtures.py`) and drainer are stdlib/light so the app uses
+them without pulling pandas/modelling deps.
+**Seeding:** `pipelines.wc2026` registers the real WC2026 group matches from the
+results data with **pre-tournament** forecasts (model fit asof the tournament
+start — no leakage).
+
 ### 005 — On-demand PC compute over Tailscale   (open) 2026-06-22
 **Decision:** Deferred. Revisit only if a live "recompute with the Bayesian model"
 feature is needed in the dashboard.

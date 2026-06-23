@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% from "_macros.html" import prob_bar %}
+{% block title %}Fixtures — Football Forecast{% endblock %}
+{% block content %}
+<section class="panel">
+  <h1>Fixtures &amp; queue</h1>
+  <p class="muted">
+    {{ fixtures|length }} fixtures · {{ pending }} queued (awaiting compute).
+    New fixtures are forecast by <code>python -m pipelines.process_queue</code> on the PC,
+    or cheap on-device inference on the Pi.
+  </p>
+
+  <form class="addfix" action="/fixtures/add" method="post">
+    <input type="date" name="date" required>
+    <input type="text" name="home" placeholder="Home team" required>
+    <input type="text" name="away" placeholder="Away team" required>
+    <input type="text" name="competition" value="FIFA World Cup">
+    <select name="comp_type">
+      {% for ct in comp_types %}<option value="{{ ct }}" {{ 'selected' if ct == 'final_tournament' }}>{{ ct }}</option>{% endfor %}
+    </select>
+    <label class="chk"><input type="checkbox" name="neutral" value="true" checked> neutral</label>
+    <button type="submit">Add fixture</button>
+  </form>
+
+  {% if fixtures %}
+  <table class="fixtures">
+    <thead>
+      <tr><th>Date</th><th>Match</th><th>Status</th><th class="bar-col">Forecast (H/D/A)</th><th>Result</th></tr>
+    </thead>
+    <tbody>
+      {% for f in fixtures %}
+      <tr>
+        <td class="date">{{ f.date }}</td>
+        <td class="match"><a href="/fixture/{{ f.fixture_id }}">{{ f.home }} <span class="vs">v</span> {{ f.away }}</a></td>
+        <td><span class="badge {{ f.status }}">{{ f.status }}</span></td>
+        <td class="bar-col">{% if f.forecast and f.forecast['1x2'] %}{{ prob_bar(f.forecast['1x2']) }}{% else %}<span class="muted">queued…</span>{% endif %}</td>
+        <td>
+          {% if f.status == 'played' %}
+          <strong>{{ f.home_goals }}–{{ f.away_goals }}</strong>
+          {% else %}
+          <form class="result-form" action="/fixtures/{{ f.fixture_id }}/result" method="post">
+            <input type="number" name="home_goals" min="0" required>
+            <span>–</span>
+            <input type="number" name="away_goals" min="0" required>
+            <button type="submit">save</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">No fixtures yet. Add one above, or seed WC2026 with <code>python -m pipelines.wc2026</code>.</p>
+  {% endif %}
+</section>
+{% endblock %}

@@ -69,6 +69,34 @@ later. The Pi never writes to the store.
 - Packaged as its own container; behind the shared Caddy at
   `forecast.homeserver.internal`. See [`deploy/DEPLOY.md`](../deploy/DEPLOY.md).
 
+## Fixtures & the forecast queue
+
+Upcoming matches and user-entered results are managed in a **separate, writable**
+`fixtures.sqlite` (DAL: `store/fixtures.py`, stdlib-only) — distinct from the
+read-only forecasts store so the one-way PC→Pi sync never clobbers Pi-side writes.
+
+```
+add fixture / result  ──▶  fixtures.sqlite (forecast = NULL ⇒ "queued")
+                                  │
+                  drain (cheap inference, fitted model)
+                                  │           Pi: synced model pickle  |  PC: fit fresh
+                                  ▼
+                       fixture row gets its forecast bundle  ⇒ "forecast"
+```
+
+- **Adding a fixture/result** (dashboard form or `pipelines`) only *records* it —
+  no compute. New fixtures are "queued" (no forecast yet).
+- **Draining the queue** (`fixtures_queue.drain`, via `pipelines.process_queue`)
+  computes the market bundle with an already-fitted model. A Dixon–Coles matrix is
+  cheap, so this is allowed on the Pi (loading a synced model pickle); the PC can
+  also do it. **No training happens in the queue** — folding new results back into
+  the model is a separate PC batch job.
+- **Seeding:** `pipelines.wc2026` loads the real WC2026 group matches from the
+  results data with pre-tournament forecasts (fit asof the tournament start).
+
+This is a deliberate, bounded **reverse channel** (Pi records requests; compute
+stays cheap or on the PC) — it does not turn the Pi into a training box (001).
+
 ### Optional: on-demand heavy compute (future, not now)
 
 If a "recompute this with the Bayesian model" button is ever needed live, the Pi

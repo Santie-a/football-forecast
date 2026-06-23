@@ -92,6 +92,95 @@ def list_forecasts(
         return [_row_to_dict(r) for r in con.execute(sql, params)]
 
 
+# Preference order when one match has several model forecasts (for the headline bar).
+MODEL_PREF = ("dixon_coles", "maher", "elo")
+
+
+def _primary_model(models: dict) -> str | None:
+    for m in MODEL_PREF:
+        if m in models:
+            return m
+    return next(iter(models), None)
+
+
+def list_matches(
+    fixture_rows: list[dict] | None = None,
+    model: str | None = None,
+    competition: str | None = None,
+    q: str | None = None,
+    limit: int = 200,
+) -> list[dict]:
+    """One row per match, compacting all model forecasts together and merging the
+    fixtures store (so user-added fixtures appear on the main page). `fixture_rows`
+    comes from the fixtures DAL (passed in to keep this module path-agnostic)."""
+    cards: dict[str, dict] = {}
+
+    if available():
+        with _connect() as con:
+            for r in con.execute(
+                "SELECT match_id,date,home,away,competition,model,payload "
+                "FROM forecasts WHERE market='1x2'"
+            ):
+                mid = r["match_id"]
+                c = cards.get(mid)
+                if c is None:
+                    c = cards[mid] = {
+                        "match_id": mid, "date": r["date"], "home": r["home"],
+                        "away": r["away"], "competition": r["competition"],
+                        "models": {}, "url": f"/match/{mid}", "result": None, "source": "store",
+                    }
+                try:
+                    c["models"][r["model"]] = json.loads(r["payload"])
+                except (TypeError, json.JSONDecodeError):
+                    pass
+
+    for f in fixture_rows or []:
+        mid = f["fixture_id"]
+        models: dict = {}
+        fc = f.get("forecast")
+        if isinstance(fc, dict) and "1x2" in fc:
+            models[f.get("forecast_model") or "model"] = fc["1x2"]
+        # Fixtures take precedence on id collision (they carry status/result).
+        cards[mid] = {
+            "match_id": mid, "date": f["date"], "home": f["home"], "away": f["away"],
+            "competition": f["competition"], "models": models, "url": f"/fixture/{mid}",
+            "result": (f["home_goals"], f["away_goals"]) if f["status"] == "played" else None,
+            "source": "fixture",
+        }
+
+    ql = (q or "").lower()
+    out = []
+    for c in cards.values():
+        if model and model not in c["models"]:
+            continue
+        if competition and c["competition"] != competition:
+            continue
+        if ql and ql not in c["home"].lower() and ql not in c["away"].lower():
+            continue
+        pm = _primary_model(c["models"])
+        c["primary_model"] = pm
+        c["primary"] = c["models"].get(pm) if pm else None
+        c["top"] = max(c["primary"], key=c["primary"].get) if c["primary"] else None
+        c["model_names"] = sorted(c["models"])
+        out.append(c)
+    out.sort(key=lambda c: c["date"], reverse=True)
+    return out[:limit]
+
+
+def match_options(fixture_rows: list[dict] | None = None) -> tuple[list[str], list[str]]:
+    """Distinct models and competitions across both stores, for the filter UI."""
+    models, comps = set(), set()
+    if available():
+        with _connect() as con:
+            models.update(r[0] for r in con.execute("SELECT DISTINCT model FROM forecasts"))
+            comps.update(r[0] for r in con.execute("SELECT DISTINCT competition FROM forecasts"))
+    for f in fixture_rows or []:
+        if f.get("forecast_model"):
+            models.add(f["forecast_model"])
+        comps.add(f["competition"])
+    return sorted(models), sorted(comps)
+
+
 def get_match(match_id: str) -> list[dict]:
     """All stored forecasts (any model/market) for one match."""
     if not available():

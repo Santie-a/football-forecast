@@ -60,6 +60,39 @@ def test_missing_store_is_graceful(tmp_path, monkeypatch):
     assert store.list_forecasts() == []
 
 
+def test_list_matches_compacts_models(populated_store):
+    # populated_store has elo only; add a second model for the same match.
+    import sqlite3
+    con = sqlite3.connect(populated_store)
+    con.execute(
+        "INSERT INTO forecasts VALUES (?,?,?,?,?,?,?,?,?)",
+        ("m1", "2026-06-21", "Uruguay", "Cape Verde", "Friendly", "dixon_coles",
+         "1x2", json.dumps({"H": 0.7, "D": 0.2, "A": 0.1}), "t"),
+    )
+    con.commit()
+    con.close()
+    cards = store.list_matches([])
+    by_id = {c["match_id"]: c for c in cards}
+    # m1 now has two models but appears once, with dixon_coles preferred for the bar.
+    assert len(by_id["m1"]["model_names"]) == 2
+    assert by_id["m1"]["primary_model"] == "dixon_coles"
+    assert by_id["m1"]["url"] == "/match/m1"
+
+
+def test_list_matches_includes_fixtures(populated_store):
+    fixture_rows = [{
+        "fixture_id": "fx1", "date": "2026-06-25", "home": "Brazil", "away": "Serbia",
+        "competition": "FIFA World Cup", "status": "played", "home_goals": 2, "away_goals": 1,
+        "forecast_model": "dixon_coles", "forecast": {"1x2": {"H": 0.6, "D": 0.25, "A": 0.15}},
+    }]
+    cards = store.list_matches(fixture_rows)
+    fx = {c["match_id"]: c for c in cards}["fx1"]
+    assert fx["source"] == "fixture"
+    assert fx["url"] == "/fixture/fx1"
+    assert fx["result"] == (2, 1)
+    assert fx["primary"]["H"] == 0.6
+
+
 def test_match_models_groups_markets(tmp_path, monkeypatch):
     path = tmp_path / "f.sqlite"
     con = sqlite3.connect(path)

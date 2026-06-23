@@ -2,16 +2,24 @@
 {% if fixtures %}
 <table class="fixtures">
   <thead>
-    <tr><th>Date</th><th>Match</th><th>Competition</th><th class="model">Model</th><th class="bar-col">1X2 (H / D / A)</th></tr>
+    <tr><th>Date</th><th>Match</th><th>Competition</th><th class="model">Models</th><th class="bar-col">1X2 (H / D / A)</th></tr>
   </thead>
   <tbody>
     {% for f in fixtures %}
-    <tr class="row" onclick="window.location='/match/{{ f.match_id }}'">
+    <tr class="row" onclick="window.location='{{ f.url }}'">
       <td class="date">{{ f.date }}</td>
-      <td class="match"><span class="home {{ 'win' if f.top == 'H' }}">{{ f.home }}</span> <span class="vs">v</span> <span class="away {{ 'win' if f.top == 'A' }}">{{ f.away }}</span></td>
+      <td class="match">
+        <span class="home {{ 'win' if f.top == 'H' }}">{{ f.home }}</span>
+        <span class="vs">v</span>
+        <span class="away {{ 'win' if f.top == 'A' }}">{{ f.away }}</span>
+        {% if f.result %}<span class="resultTag">{{ f.result[0] }}–{{ f.result[1] }}</span>{% endif %}
+      </td>
       <td class="comp">{{ f.competition }}</td>
-      <td class="model">{{ f.model }}</td>
-      <td class="bar-col">{{ prob_bar(f.payload) }}</td>
+      <td class="model">
+        {% for m in f.model_names %}<span class="mbadge {{ 'on' if m == f.primary_model }}">{{ m }}</span>{% endfor %}
+        {% if not f.model_names %}<span class="muted">queued…</span>{% endif %}
+      </td>
+      <td class="bar-col">{% if f.primary %}{{ prob_bar(f.primary) }}{% else %}<span class="muted">—</span>{% endif %}</td>
     </tr>
     {% endfor %}
   </tbody>

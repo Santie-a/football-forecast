@@ -44,6 +44,29 @@ you copy to a temp name then `mv`.
 
 A scheduled job can automate this later; manual rsync is fine to start.
 
+### The fixtures store (Pi-owned, writable — do NOT overwrite)
+
+The dashboard's "Manage & queue" page writes upcoming fixtures and results to a
+**separate** `fixtures.sqlite`:
+
+```
+/mnt/ssd/appdata/forecast/fixtures.sqlite   ->  /data/fixtures.sqlite (rw)
+                                                 env: FIXTURES_STORE=/data/fixtures.sqlite
+```
+
+Unlike the forecasts store, this file is **owned by the Pi and must never be
+rsynced over from the PC** — it holds Pi-side additions. Seed it once on the PC
+(`python -m pipelines.wc2026`) and copy it to the Pi a single time, or seed
+directly on the Pi. To compute forecasts for queued fixtures on the Pi, sync a
+fitted model pickle and run:
+
+```bash
+python -m pipelines.process_queue --model-file /data/dixon_coles.pkl \
+  --fixtures /data/fixtures.sqlite
+```
+
+This is cheap inference (a matrix calc), allowed on the Pi; it never trains.
+
 ## First deploy (summary — host steps are in the skill)
 
 1. `ssh homeserver`; `sudo git clone <repo> /mnt/ssd/stacks/forecast` (once a repo exists).

@@ -7,8 +7,11 @@
   {% if not match %}
   <p class="empty">No forecast found for <code>{{ match_id }}</code>.</p>
   {% else %}
-  <h1 class="matchtitle">{{ match.home }} <span class="vs">vs</span> {{ match.away }}</h1>
-  <p class="meta">{{ match.competition }} · {{ match.date }}</p>
+  <h1 class="matchtitle">{{ match.home }} <span class="vs">vs</span> {{ match.away }}
+    {% if match.result %}<span class="actual">{{ match.result[0] }}–{{ match.result[1] }}</span>{% endif %}
+  </h1>
+  <p class="meta">{{ match.competition }} · {{ match.date }}{% if match.result %} · actual result shown{% endif %}</p>
+  {% if not match.models %}<p class="empty">Forecast queued — not yet computed.</p>{% endif %}
 
   {% for m in match.models %}
   <div class="forecast-card">
