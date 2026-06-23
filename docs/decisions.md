@@ -63,6 +63,15 @@ JITs via numba and needs no C toolchain — a 50-team/2000-match hierarchical mo
 samples in ~8s. Supersedes the "install a C compiler before Phase 3" note (006).
 Adds `nutpie`/`numba` to the `research` extra.
 
+### 010 — League data source = GitHub mirror of football-data.co.uk   (accepted) 2026-06-23
+**Decision:** Use the consolidated GitHub mirror
+(`xgabora/Club-Football-Match-Data-2000-2025`, one `Matches.csv`) for league data.
+**Why:** football-data.co.uk is unreachable from this environment (connection
+times out; only GitHub egress works). The mirror carries goals/shots/fouls/corners/
+cards + 1X2 & O/U odds for 42 leagues 2000–2025 — everything except **referee**
+(so M06 stays deferred). Loader: `data/sources/club_matches.py`; one division per
+processed parquet.
+
 ### 005 — On-demand PC compute over Tailscale   (open) 2026-06-22
 **Decision:** Deferred. Revisit only if a live "recompute with the Bayesian model"
 feature is needed in the dashboard.
@@ -118,20 +127,27 @@ results dataset's neutral-venue flag drives this.
 **Why:** There is no host on a neutral pitch; applying a home bonus would bias
 tournament matches (exactly the World Cup case we care about first).
 
-### M04 — Poisson vs negative binomial per target   (deferred → decide from EDA)
-**Trigger:** EDA dispersion check (variance vs mean) per target. **Expectation:**
-goals ≈ Poisson; fouls/cards likely overdispersed → NegBin. Decide empirically.
+### M04 — Poisson vs negative binomial per target   (accepted) 2026-06-23
+**Decision:** Auto-select per target on residual var/mean (> 1.15 → NegBin). On E0:
+**corners → NegBin** (1.43); **goals, fouls, yellow cards → Poisson** (~0.9–1.15).
+**Why:** Decided empirically (Phase 4). Notably fouls/yellows are *not*
+overdispersed here — the roadmap's prior guess didn't hold; the data decides.
 
 ### M05 — Training-window length (volume vs relevance)   (deferred → tune in backtest)
 **Trigger:** Phase 1–2 backtesting; tune alongside M02 (decay vs hard window).
 
-### M06 — Referee as fixed vs random effect (cards/fouls)   (deferred → Phase 4)
-**Trigger:** League phase, where referee data and count targets exist. Not relevant
-to the national-team / World Cup phases.
+### M06 — Referee as fixed vs random effect (cards/fouls)   (deferred — no data) 2026-06-23
+**Status:** Still deferred. The reachable league source (GitHub mirror) **drops the
+referee column**, and football-data.co.uk (which has it) is unreachable here. Count
+models currently use team for/against + home, no referee term. Revisit when a
+referee-bearing source is reachable.
 
-### M07 — Catalogue of leakage fields per chosen schema   (open — ongoing)
-**Plan:** Populate as each source schema is examined; record every post-kickoff
-field that must never be a feature. See `docs/data.md`.
+### M07 — Catalogue of leakage fields per chosen schema   (accepted) 2026-06-23
+**Decision:** Documented per source in `docs/data.md` → "Leakage catalogue". For the
+league schema: all match-outcome stats (goals, shots, fouls, corners, cards, FT/HT
+results) are **targets, never features** for the same match; pre-kickoff fields
+(odds, Elo snapshots, rolling form) are safe. Odds are used only as the benchmark,
+never as a model input.
 
 ---
 
@@ -227,3 +243,63 @@ trails** the well-tuned Dixon–Coles on aggregate holdout RPS (0.1639 vs 0.1593
 the honest outcome roadmap 3.5 anticipates. The Bayesian model's value is
 calibrated uncertainty for sparse teams, not aggregate point accuracy. Full
 write-up: `research/notes/03-phase3-bayesian.md`.
+
+---
+
+## Phase 4 implementation decisions   (accepted) 2026-06-23
+
+### P4-01 — Count models = penalized Poisson MLE mean + family by dispersion
+**Decision:** `models/counts.py` fits log E[count] = mu + home + for_[team] +
+against_[opp] by penalized Poisson MLE (same machinery as the goal model); the
+predictive family (Poisson/NegBin) is auto-chosen from residual dispersion (M04).
+**Why:** Reuses proven, fast machinery; lets each target pick its own family from
+the data.
+
+### P4-02 — Market benchmark = proportional de-vig of closing odds
+**Decision:** `eval/market.py` de-vigs 1X2 odds by inverse-odds normalization;
+treated as the gold-standard baseline, never as a model input (leakage, M07).
+**Why:** Standard, simple baseline; Shin/power methods are a logged refinement.
+
+### P4-03 — One processed parquet per division
+**Decision:** `pipelines.ingest_league --division E0` writes
+`data/processed/league_<div>.parquet`; models/experiments take a `--division`.
+**Why:** Keeps leagues isolated and competition-agnostic (decision 007).
+
+**Phase 4 result (PASS, M06 deferred):** On E0 (7,600 matches), Dixon–Coles 1X2
+RPS 0.2047 vs de-vigged market 0.1948 (base rate 0.2313) — within 0.01 of the
+market. Count models calibrated (coverage near nominal). M04 resolved (corners →
+NegBin; others Poisson). Referee (M06) unavailable in the source. Full write-up:
+`research/notes/04-phase4-leagues.md`.
+
+---
+
+## Phase 5 implementation decisions   (accepted) 2026-06-23
+
+### P5-01 — Leakage-free features via a single chronological pass
+**Decision:** `features/engineering.py` maintains per-team state (Elo, rolling
+form, rest days), snapshots it **before** each match, then updates. The post-train
+state predicts future fixtures.
+**Why:** Guarantees no leakage and matches how Elo/DC behave in the backtester
+(fit once at origin, static within fold).
+
+### P5-02 — Boosting behind the same protocol; 1X2 multiclass, counts Poisson
+**Decision:** `BoostingModel` (LightGBM multiclass) implements OutcomeModel and
+drops into the walk-forward harness; `BoostingCountModel` uses the Poisson
+objective for count targets. Added to the backtest/train/forecast/queue factories.
+**Why:** Apples-to-apples comparison on identical splits.
+
+**Phase 5 result (PASS — honest negative finding):** On E0, gradient boosting
+**loses on 1X2** (RPS 0.2269 vs Elo 0.2039 / DC 0.2042, and poorly calibrated
+ECE 0.091) and **ties on counts** (corners: boosting MAE 2.238 vs GLM 2.253; GLM
+deviance 1.577 vs 1.580). The structured goal models' inductive bias wins on 1X2;
+boosting only matches where there's no generative structure to exploit (counts).
+The de-vigged market (RPS 0.1938) remains the ceiling. Full synthesis:
+`research/notes/05-phase5-boosting.md`.
+
+## Project synthesis (all phases)
+
+Dixon–Coles is the workhorse (best/tied-best 1X2 on both national teams and
+leagues, cheap, calibrated). Bayesian adds calibrated uncertainty for sparse teams
+but doesn't beat DC on aggregate. Boosting honestly loses on 1X2, ties on counts.
+The market is the gold standard none beat (DC within ~0.01 RPS). Recurring lesson:
+**inductive bias + recency weighting beat model complexity** on this data.

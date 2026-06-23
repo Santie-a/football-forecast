@@ -30,6 +30,30 @@ fit *and validate* them exists.
 - **APIs (optional):** API-Football (detailed, freemium), football-data.org
   (thinner, free). Note rate caps.
 
+## League data (Phase 4) — what we actually use
+
+football-data.co.uk is the canonical league source but is **unreachable** from this
+environment. We use a GitHub mirror, `xgabora/Club-Football-Match-Data-2000-2025`
+(one `Matches.csv`, 42 leagues 2000–2025), via `data/sources/club_matches.py`
+(decision 010). It carries goals, shots, fouls, corners, yellow/red cards, and
+1X2 + over/under odds — but **no referee** (so M06 stays deferred). One division →
+one processed parquet (`pipelines.ingest_league --division E0`).
+
+## Leakage catalogue (M07)
+
+Fields known only **after kickoff/full-time** — targets, never features for the
+same match:
+
+- **National-team source:** `home_goals`, `away_goals` (and the derived outcome).
+- **League source:** `home_goals`/`away_goals`, `FTResult`/`HTResult`/`HT*`, shots
+  (`HomeShots`/`AwayShots`/targets), `home_fouls`/`away_fouls`,
+  `home_corners`/`away_corners`, `home_yellow`/`away_yellow`/`home_red`/`away_red`.
+
+Safe (pre-kickoff): `date`, `competition`, `comp_type`, `home`, `away`, `neutral`,
+`season`, bookmaker `odds_*` (used **only** as the benchmark, never as a model
+input), and any pre-match Elo/rolling-form snapshot. Rule enforced in
+`data/schema.py` and the no-leakage backtester.
+
 ## Recurring data tasks (do for every source)
 
 - Understand each schema: column meanings, units, missing-data conventions, encodings.

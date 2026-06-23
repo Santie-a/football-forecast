@@ -16,6 +16,7 @@ import pandas as pd
 
 from football_forecast.eval.backtest import walk_forward, yearly_origins
 from football_forecast.models.baseline import BaseRateModel
+from football_forecast.models.boosting import BoostingModel
 from football_forecast.models.dixon_coles import DixonColesModel, MaherModel
 from football_forecast.models.elo import EloModel
 
@@ -24,6 +25,7 @@ FACTORIES = {
     "elo": EloModel,
     "maher": MaherModel,
     "dixon_coles": DixonColesModel,
+    "boosting": BoostingModel,
 }
 
 
@@ -31,7 +33,7 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
         "--model", default="all",
-        choices=["all", "baseline", "elo", "maher", "dixon_coles"],
+        choices=["all", "baseline", "elo", "maher", "dixon_coles", "boosting"],
     )
     ap.add_argument("--start", type=int, default=1990, help="first backtest origin year")
     ap.add_argument("--data", default="data/processed/intl_results.parquet")
