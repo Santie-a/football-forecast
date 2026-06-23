@@ -78,10 +78,12 @@ encode **competition type** as a feature rather than filtering matches out.
 scarce data. Keeping them with an intensity/type feature lets the model learn the
 difference instead of us assuming it. Intensity weighting can be tuned later (M02).
 
-### M02 — Time-decay half-life for match weighting   (deferred → tune in backtest)
-**Trigger:** Phase 1–2 backtesting. **Plan:** treat the half-life as a hyperparameter,
-select by backtest RPS on time-ordered splits. Until then, start with a moderate
-default and record it with each run.
+### M02 — Time-decay half-life for match weighting   (accepted) 2026-06-22
+**Decision:** Default Dixon–Coles half-life = **1460 days (~4 years)**.
+**Why:** Backtest sweep (origins 2005–2026, `research/exp_halflife.py`): no decay
+0.1814 RPS, 365d 0.1753, 730d 0.1727, **1460d 0.1723** (best); gains flatten past
+~730d. No-decay is dramatically worse → recency weighting is the key ingredient.
+4 years suits international football (squads turn over slowly over a WC cycle).
 
 ### M03 — Home advantage for neutral-venue matches   (accepted) 2026-06-22
 **Decision:** On neutral-venue matches, **drop the home-advantage term** (Elo: no
@@ -104,3 +106,70 @@ to the national-team / World Cup phases.
 ### M07 — Catalogue of leakage fields per chosen schema   (open — ongoing)
 **Plan:** Populate as each source schema is examined; record every post-kickoff
 field that must never be a feature. See `docs/data.md`.
+
+---
+
+## Phase 1 implementation decisions   (accepted) 2026-06-22
+
+### P1-01 — National-team data source = martj42 GitHub mirror
+**Decision:** Ingest the international results dataset from its public GitHub raw
+CSV (`martj42/international_results`), not Kaggle.
+**Why:** Auth-free → reproducible without a Kaggle account/API key. Same data as
+the Kaggle dataset. Trade-off: it updates continuously, so pin
+`data/raw/intl_results.csv` for exact reproduction.
+
+### P1-02 — Coarse comp_type classifier
+**Decision:** Map tournament name → {friendly, qualifier, final_tournament,
+continental} with a 4-rule classifier; this drives Elo K-factor importance.
+**Why:** Enough signal for the M01 importance feature in Phase 1; a fuller
+competition taxonomy is a refinement, not a blocker.
+
+### P1-03 — Elo 1X2 head = Davidson tie model, single `nu`
+**Decision:** Turn the Elo rating gap into H/D/A with a Davidson tie model whose
+one draw parameter `nu` is fit by log loss on pre-match gaps during `fit`.
+**Why:** Keeps standard Elo home/away odds exactly, adds a principled draw
+probability that peaks for even teams, learns the draw rate from data, no leakage.
+Refinement to a full ordered logit on comp_type is logged for later.
+
+### P1-04 — Backtest protocol = expanding window, yearly origins, refit per origin
+**Decision:** Walk-forward with Jan-1 origins, refit each origin, `min_train=500`.
+**Why:** Strictly time-ordered, no leakage; yearly granularity keeps refits cheap
+at 49k matches while giving 30+ folds.
+
+**Phase 1 result:** Elo RPS 0.1809 vs base-rate 0.2257 over 32,327 test matches
+(1990–2026) → acceptance PASS. Full reproduce recipe in
+`research/notes/01-phase1-elo.md`.
+
+---
+
+## Phase 2 implementation decisions   (accepted) 2026-06-22
+
+### P2-01 — Keystone implemented once in forecast/
+**Decision:** `scoreline_matrix()` + `markets.py` (one_x_two/over_under/btts/
+correct_score) are the single source for all markets; truncate at max_goals=10
+and renormalize.
+**Why:** 1X2/OU/CS must never be modelled independently — all are sums over the
+one matrix (docs/models-explained.md §3). Golden-number tested.
+
+### P2-02 — Goal-model fitting = penalized MLE with analytic gradient
+**Decision:** Fit attack/defence/home/intercept by L-BFGS-B on the weighted
+Poisson NLL with an analytic O(N) gradient and an L2 penalty on attack/defence.
+**Why:** Analytic gradient makes the 2T+2 params tractable per refit; the L2
+penalty removes the additive degeneracy AND shrinks sparse teams toward average
+(the shrinkage the roadmap calls for).
+
+### P2-03 — Dixon–Coles rho via two-stage profile fit
+**Decision:** Fit the low-score `rho` in a second 1-D stage, holding the Poisson
+means fixed.
+**Why:** Standard, fast, stable approximation to the joint DC fit; rho is a small
+refinement on top of the means, so profiling it loses little and avoids a harder
+joint optimization.
+
+### P2-04 — Maher kept as an ablation
+**Decision:** `MaherModel` = independent Poisson, no decay, no rho — retained in
+the comparison.
+**Why:** It isolates *what* helps. Finding: Maher (0.1844 RPS) is *worse* than Elo
+(0.1809); Dixon–Coles (decay + rho) is what beats Elo. Honest, informative.
+
+**Phase 2 result:** see `research/notes/02-phase2-dixon-coles.md` (Dixon–Coles
+beats Elo on RPS and log loss; acceptance PASS).

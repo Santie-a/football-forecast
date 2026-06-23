@@ -60,10 +60,21 @@ definition lives in `src/football_forecast/store/`; keep this table in sync.
 | `date` | TEXT (ISO) | kickoff date |
 | `home`, `away` | TEXT | canonical team names |
 | `competition` | TEXT | tournament / league |
-| `model` | TEXT | `elo`, `dixon_coles`, `bayesian`, `boosting` |
-| `market` | TEXT | `scoreline`, `1x2`, `over_under`, `counts` |
-| `payload` | JSON | market-specific probabilities (e.g. the scoreline matrix, or {H,D,A}) |
+| `model` | TEXT | `elo`, `maher`, `dixon_coles`, `bayesian`, `boosting` |
+| `market` | TEXT | `1x2`, `scoreline`, `over_under`, `correct_score`, `counts` |
+| `payload` | JSON | market-specific (see shapes below) |
 | `generated_at` | TEXT (ISO) | when the PC produced this row |
+
+**Payload shapes (implemented).** One row per (match, model, market). Goal models
+(maher, dixon_coles) publish the full bundle via `forecast/bundle.py`; result-only
+models (elo) publish `1x2` only.
+
+| market | payload |
+|--------|---------|
+| `1x2` | `{"H":.., "D":.., "A":..}` |
+| `scoreline` | `{"goals": G, "matrix": [[P(i,j)]]}` — display slice 0..G |
+| `over_under` | `{"1.5": {"over","under"}, "2.5": {...}, "3.5": {...}}` |
+| `correct_score` | `{"i-j": p}` for the top scorelines |
 
 ### `backtests.parquet` (sketch)
 

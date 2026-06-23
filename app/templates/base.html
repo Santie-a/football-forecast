@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Football Forecast{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/vendor/htmx.min.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">⚽ Football&nbsp;Forecast</a>
+    <span class="muted">precomputed on the PC · served read-only</span>
+  </header>
+  <main>{% block content %}{% endblock %}</main>
+  <footer class="foot">
+    Scoreline · 1X2 · counts — derived from one goal model. Forecasts read from the artifact store.
+  </footer>
+</body>
+</html>

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% from "_macros.html" import prob_bar, scoreline_heatmap %}
+{% block title %}{% if match %}{{ match.home }} v {{ match.away }}{% endif %} — Football Forecast{% endblock %}
+{% block content %}
+<section class="panel">
+  <a class="back" href="/">← all fixtures</a>
+  {% if not match %}
+  <p class="empty">No forecast found for <code>{{ match_id }}</code>.</p>
+  {% else %}
+  <h1 class="matchtitle">{{ match.home }} <span class="vs">vs</span> {{ match.away }}</h1>
+  <p class="meta">{{ match.competition }} · {{ match.date }}</p>
+
+  {% for m in match.models %}
+  <div class="forecast-card">
+    <div class="card-head"><span class="model-badge">{{ m.model }}</span>
+      <span class="market">{{ m.markets.keys()|join(' · ') }}</span></div>
+
+    {% if '1x2' in m.markets %}
+    {{ prob_bar(m.markets['1x2']) }}
+    <table class="probs">
+      <tr><th>{{ match.home }} (H)</th><th>Draw (D)</th><th>{{ match.away }} (A)</th></tr>
+      <tr><td>{{ m.markets['1x2'].H|pct }}%</td><td>{{ m.markets['1x2'].D|pct }}%</td><td>{{ m.markets['1x2'].A|pct }}%</td></tr>
+    </table>
+    {% endif %}
+
+    {% if 'scoreline' in m.markets %}
+    <div class="sub">
+      <div class="sub-block">
+        <h3>Scoreline</h3>
+        {{ scoreline_heatmap(match.home, match.away, m.markets['scoreline']) }}
+      </div>
+      <div class="sub-side">
+        {% if 'correct_score' in m.markets %}
+        <h3>Most likely scores</h3>
+        <ul class="cs">
+          {% for score, p in m.markets['correct_score'].items() %}
+          <li><span class="sc">{{ score }}</span><span class="scp">{{ p|pct }}%</span></li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+        {% if 'over_under' in m.markets %}
+        <h3>Total goals</h3>
+        <table class="ou">
+          <tr><th>Line</th>{% for line in m.markets['over_under'] %}<th>{{ line }}</th>{% endfor %}</tr>
+          <tr><td>Over</td>{% for line, ou in m.markets['over_under'].items() %}<td>{{ ou.over|pct }}%</td>{% endfor %}</tr>
+          <tr><td>Under</td>{% for line, ou in m.markets['over_under'].items() %}<td>{{ ou.under|pct }}%</td>{% endfor %}</tr>
+        </table>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <p class="generated">generated {{ m.generated_at }}</p>
+  </div>
+  {% endfor %}
+  {% endif %}
+</section>
+{% endblock %}

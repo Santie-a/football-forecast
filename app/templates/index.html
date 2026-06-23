@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel">
+  <h1>Fixtures &amp; forecasts</h1>
+  {% if not available %}
+  <p class="warn">No forecast store found. Run <code>python -m pipelines.forecast</code> on the PC and sync the store.</p>
+  {% else %}
+  <form class="filters" action="/" method="get"
+        hx-get="/fragments/fixtures" hx-target="#fixtures" hx-swap="innerHTML"
+        hx-trigger="change, keyup changed delay:300ms from:input[name='q']">
+    <label>Model
+      <select name="model">
+        <option value="">all</option>
+        {% for m in models %}<option value="{{ m }}" {{ 'selected' if m == sel_model }}>{{ m }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Competition
+      <select name="competition">
+        <option value="">all</option>
+        {% for c in competitions %}<option value="{{ c }}" {{ 'selected' if c == sel_comp }}>{{ c }}</option>{% endfor %}
+      </select>
+    </label>
+    <label class="search">Team
+      <input type="search" name="q" value="{{ q }}" placeholder="e.g. Brazil" autocomplete="off">
+    </label>
+    <noscript><button type="submit">Filter</button></noscript>
+  </form>
+
+  <div id="fixtures">{% include "_fixtures.html" %}</div>
+  {% endif %}
+</section>
+{% endblock %}

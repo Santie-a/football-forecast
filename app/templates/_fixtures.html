@@ -1,0 +1,21 @@
+{% from "_macros.html" import prob_bar %}
+{% if fixtures %}
+<table class="fixtures">
+  <thead>
+    <tr><th>Date</th><th>Match</th><th>Competition</th><th class="model">Model</th><th class="bar-col">1X2 (H / D / A)</th></tr>
+  </thead>
+  <tbody>
+    {% for f in fixtures %}
+    <tr class="row" onclick="window.location='/match/{{ f.match_id }}'">
+      <td class="date">{{ f.date }}</td>
+      <td class="match"><span class="home {{ 'win' if f.top == 'H' }}">{{ f.home }}</span> <span class="vs">v</span> <span class="away {{ 'win' if f.top == 'A' }}">{{ f.away }}</span></td>
+      <td class="comp">{{ f.competition }}</td>
+      <td class="model">{{ f.model }}</td>
+      <td class="bar-col">{{ prob_bar(f.payload) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">No forecasts match these filters.</p>
+{% endif %}
