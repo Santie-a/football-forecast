@@ -1,6 +1,5 @@
 """Tests for the fixtures store + queue drain."""
 
-from datetime import date
 
 import pytest
 

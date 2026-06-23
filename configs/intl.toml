@@ -1,0 +1,7 @@
+# National-team pipeline (scores only). Run:  python -m pipelines.run --config configs/intl.toml
+source = "intl"
+model = "dixon_coles"
+seed = 0
+start_year = 1990
+min_train = 500
+forecast_mode = "upcoming"

@@ -1,10 +1,11 @@
-"""Train stage: fit a model on all available history and persist it.
+"""Train stage: fit a model on all available history and persist it (+ manifest).
 
-    python -m pipelines.train [--model elo] [--data PATH] [--out DIR]
+    python -m pipelines.train [--model dixon_coles] [--data PATH] [--seed N]
+                              [--config run.toml]
 
-For Elo there is no randomness (no seed needed). The fitted model is pickled to
-artifacts/models/ with its config, so any forecast is traceable to how it was
-produced (docs/workflow.md → reproducing results).
+The fitted model is pickled to artifacts/models/ alongside a `.manifest.json`
+recording the config, seed, git commit, and input data fingerprint — so any
+forecast is traceable to how it was produced (docs/workflow.md).
 """
 
 from __future__ import annotations
@@ -17,33 +18,50 @@ from pathlib import Path
 import pandas as pd
 
 from football_forecast.models.bayesian import BayesianModel
+from football_forecast.models.boosting import BoostingModel
 from football_forecast.models.dixon_coles import DixonColesModel, MaherModel
 from football_forecast.models.elo import EloModel
+from football_forecast.provenance import write_manifest
+from pipelines import _common
 
 FACTORIES = {
     "elo": EloModel,
     "maher": MaherModel,
     "dixon_coles": DixonColesModel,
     "bayesian": BayesianModel,
+    "boosting": BoostingModel,
 }
+
+
+def _build(model: str, kwargs: dict, seed: int):
+    cls = FACTORIES[model]
+    kw = dict(kwargs)
+    if model in ("bayesian", "boosting") and "seed" not in kw:
+        kw["seed"] = seed
+    return cls(**kw)
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--model", default="elo", choices=list(FACTORIES))
-    ap.add_argument("--data", default="data/processed/intl_results.parquet")
-    ap.add_argument("--out", default="artifacts/models")
+    _common.add_common_args(ap, model_choices=list(FACTORIES))
+    ap.add_argument("--out", help="models dir (default from config)")
     args = ap.parse_args()
+    cfg = _common.base_config(args)
 
-    matches = pd.read_parquet(args.data)
+    matches = pd.read_parquet(cfg.data)
     asof = (pd.to_datetime(matches["date"]).max() + timedelta(days=1)).date()
-    model = FACTORIES[args.model]().fit(matches, asof=asof)
+    model = _build(cfg.model, cfg.model_kwargs, cfg.seed).fit(matches, asof=asof)
 
-    Path(args.out).mkdir(parents=True, exist_ok=True)
-    dest = Path(args.out) / f"{args.model}-{asof}.pkl"
+    out_dir = Path(args.out or cfg.models_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    dest = out_dir / f"{cfg.model}-{asof}.pkl"
     with open(dest, "wb") as fh:
         pickle.dump(model, fh)
-    print(f"fitted {args.model} on {len(matches):,} matches (asof {asof}) -> {dest}")
+    write_manifest(
+        dest, "train", config=cfg.to_dict(), seed=cfg.seed, inputs=[cfg.data],
+        metrics={"asof": str(asof), "n_train": len(matches)},
+    )
+    print(f"fitted {cfg.model} on {len(matches):,} matches (asof {asof}) -> {dest}")
 
 
 if __name__ == "__main__":

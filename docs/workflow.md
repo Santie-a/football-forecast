@@ -30,15 +30,33 @@ Keep the end-to-end pipeline runnable at all times, however simple the model.
 
 ## Running things (PC, development)
 
+Stages are **config-driven** and source-aware. A run is described by a `RunConfig`
+(`src/football_forecast/config.py`) — pass `--config <toml>` (see `configs/`) or
+individual flags (`--source/--division/--data/--model/--seed`). Every stage writes
+a `<artifact>.manifest.json` recording the config, seed, git commit, and input data
+fingerprint (provenance.py) — so any artifact is traceable.
+
 ```bash
-pip install -e ".[dev,research]"     # library + dev + training deps
-python -m pipelines.ingest
-python -m pipelines.train
-python -m pipelines.backtest
-python -m pipelines.forecast
-uvicorn app.main:app --reload        # dashboard at http://localhost:8000
-pytest                               # tests
+pip install -e ".[dev,research]"          # library + dev + training deps
+
+# One command runs the whole flow from a config:
+python -m pipelines.run --config configs/intl.toml
+python -m pipelines.run --config configs/league_e0.toml --stages train,backtest
+
+# Or stage-by-stage (each takes --config or flags):
+python -m pipelines.ingest   --source intl                 # or --source league --division E0
+python -m pipelines.train    --config configs/intl.toml
+python -m pipelines.backtest --config configs/intl.toml --model all
+python -m pipelines.forecast --config configs/intl.toml    # --mode upcoming (default) | backfill
+
+uvicorn app.main:app --reload             # dashboard at http://localhost:8000
+pytest                                    # tests (need the research extra)
 ```
+
+**Forecast modes.** `upcoming` (default) forecasts the unplayed fixtures in the
+fixtures store/queue with a freshly-fit model — the real "next matches" path.
+`backfill` writes the most-recent-N played matches' pre-match forecasts to the
+read-only forecasts store for the dashboard's history.
 
 ## Reproducing a phase's results
 
@@ -55,15 +73,14 @@ A phase's reproduce note records:
 5. **Expected outputs** — the metric numbers (RPS, log loss, …) a correct rerun
    should reproduce, and where the artifacts land (`artifacts/...`).
 
-Example skeleton (fill in per phase):
+Much of this is now captured automatically in each artifact's `.manifest.json`
+(git commit, seed, config, input data sha256, metrics). Example skeleton:
 
 ```bash
 # Phase N — <title>   (commit <hash>, seed <s>)
 pip install -e ".[dev,research]"
-python -m pipelines.ingest   --source <...> --asof <YYYY-MM-DD>
-python -m pipelines.train    --model <...> --seed <s>
-python -m pipelines.backtest --model <...> --seed <s>   # → RPS ≈ <x>, log loss ≈ <y>
-python -m pipelines.forecast --model <...>
+python -m pipelines.run --config configs/<phase>.toml   # ingest→train→backtest→forecast
+#   → backtest RPS ≈ <x>, log loss ≈ <y>  (also in artifacts/metrics/*.manifest.json)
 ```
 
 > **Convention:** when a phase is completed, the reproduce note is written into that

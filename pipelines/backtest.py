@@ -1,10 +1,11 @@
 """Backtest stage: walk-forward evaluation of models on identical splits.
 
-    python -m pipelines.backtest [--model elo|baseline|both] [--start YEAR]
-                                 [--data PATH] [--out PATH]
+    python -m pipelines.backtest [--model all|elo|...] [--start-year YEAR]
+                                 [--data PATH | --source league --division E0]
 
-Prints the RPS / log-loss / Brier table and writes per-origin metrics to parquet.
-The Phase 1 acceptance check: Elo must beat the base-rate baseline on RPS.
+Prints the RPS / log-loss / Brier table and writes per-origin metrics to parquet
+with a `.manifest.json`. Acceptance checks: Elo > base rate (Phase 1); Dixon–Coles
+> Elo on RPS and log loss (Phase 2).
 """
 
 from __future__ import annotations
@@ -19,6 +20,8 @@ from football_forecast.models.baseline import BaseRateModel
 from football_forecast.models.boosting import BoostingModel
 from football_forecast.models.dixon_coles import DixonColesModel, MaherModel
 from football_forecast.models.elo import EloModel
+from football_forecast.provenance import write_manifest
+from pipelines import _common
 
 FACTORIES = {
     "baseline": BaseRateModel,
@@ -31,49 +34,41 @@ FACTORIES = {
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument(
-        "--model", default="all",
-        choices=["all", "baseline", "elo", "maher", "dixon_coles", "boosting"],
-    )
-    ap.add_argument("--start", type=int, default=1990, help="first backtest origin year")
-    ap.add_argument("--data", default="data/processed/intl_results.parquet")
-    ap.add_argument("--out", default="artifacts/metrics/backtests.parquet")
-    ap.add_argument("--min-train", type=int, default=500)
+    _common.add_common_args(ap)  # --config/--source/--division/--data/--since/--seed
+    ap.add_argument("--model", default="all", choices=["all", *FACTORIES])
+    ap.add_argument("--start", "--start-year", dest="start_year", type=int)
+    ap.add_argument("--min-train", dest="min_train", type=int)
+    ap.add_argument("--out", help="metrics parquet (default from config)")
     args = ap.parse_args()
+    cfg = _common.base_config(args)
 
-    matches = pd.read_parquet(args.data)
-    origins = yearly_origins(matches, start=args.start)
+    matches = pd.read_parquet(cfg.data)
+    origins = yearly_origins(matches, start=cfg.start_year)
     names = list(FACTORIES) if args.model == "all" else [args.model]
 
-    frames = []
-    overall = {}
+    frames, overall = [], {}
     for name in names:
-        res = walk_forward(
-            FACTORIES[name], matches, origins, min_train_matches=args.min_train
-        )
+        res = walk_forward(FACTORIES[name], matches, origins, min_train_matches=cfg.min_train)
         overall[name] = res.overall
         frames.append(res.per_origin.assign(model=name))
         print(f"{name:12s} {res}")
 
     if "elo" in overall and "baseline" in overall:
         d = overall["baseline"]["rps"] - overall["elo"]["rps"]
-        print(
-            f"\nPhase 1 — Elo beats base rate on RPS: {'PASS' if d > 0 else 'FAIL'} "
-            f"({d:+.4f})"
-        )
+        print(f"\nPhase 1 — Elo beats base rate on RPS: {'PASS' if d > 0 else 'FAIL'} ({d:+.4f})")
     if "dixon_coles" in overall and "elo" in overall:
-        dc, elo = overall["dixon_coles"], overall["elo"]
-        d_rps = elo["rps"] - dc["rps"]
-        d_ll = elo["log_loss"] - dc["log_loss"]
+        d_rps = overall["elo"]["rps"] - overall["dixon_coles"]["rps"]
+        d_ll = overall["elo"]["log_loss"] - overall["dixon_coles"]["log_loss"]
         ok = d_rps > 0 and d_ll > 0
-        print(
-            f"Phase 2 — Dixon–Coles beats Elo on RPS AND log loss: "
-            f"{'PASS' if ok else 'FAIL'} (dRPS {d_rps:+.4f}, dLogLoss {d_ll:+.4f})"
-        )
+        print(f"Phase 2 — Dixon–Coles beats Elo on RPS AND log loss: "
+              f"{'PASS' if ok else 'FAIL'} (dRPS {d_rps:+.4f}, dLogLoss {d_ll:+.4f})")
 
-    Path(args.out).parent.mkdir(parents=True, exist_ok=True)
-    pd.concat(frames, ignore_index=True).to_parquet(args.out, index=False)
-    print(f"wrote per-origin metrics to {args.out}")
+    out = args.out or cfg.metrics_path
+    Path(out).parent.mkdir(parents=True, exist_ok=True)
+    pd.concat(frames, ignore_index=True).to_parquet(out, index=False)
+    write_manifest(out, "backtest", config=cfg.to_dict(), seed=cfg.seed,
+                   inputs=[cfg.data], metrics=overall)
+    print(f"wrote per-origin metrics to {out}")
 
 
 if __name__ == "__main__":

@@ -3,7 +3,6 @@ Hand-computed values are in the comments so a regression is unambiguous."""
 
 import math
 
-import numpy as np
 import pytest
 
 from football_forecast.forecast.markets import (

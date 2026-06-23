@@ -7,7 +7,7 @@ import pandas as pd
 import pytest
 
 from football_forecast.data.schema import OUTCOMES, Fixture, validate
-from football_forecast.features.engineering import FEATURES, FeatureState, build_training
+from football_forecast.features.engineering import FEATURES, build_training
 from football_forecast.models.boosting import BoostingCountModel, BoostingModel
 
 
