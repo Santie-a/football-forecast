@@ -55,6 +55,14 @@ them without pulling pandas/modelling deps.
 results data with **pre-tournament** forecasts (model fit asof the tournament
 start — no leakage).
 
+### 009 — MCMC sampler = nutpie (numba), no C compiler   (accepted) 2026-06-23
+**Decision:** Sample the Bayesian model with **nutpie** (numba backend), not
+PyMC's default pytensor-C sampler.
+**Why:** No g++/clang on the box; the pytensor fallback is unusably slow. nutpie
+JITs via numba and needs no C toolchain — a 50-team/2000-match hierarchical model
+samples in ~8s. Supersedes the "install a C compiler before Phase 3" note (006).
+Adds `nutpie`/`numba` to the `research` extra.
+
 ### 005 — On-demand PC compute over Tailscale   (open) 2026-06-22
 **Decision:** Deferred. Revisit only if a live "recompute with the Bayesian model"
 feature is needed in the dashboard.
@@ -68,9 +76,11 @@ freshly-released 3.14; 3.12 is the stable sweet spot. Deps split into a light co
 (also installed on the Pi) and a heavy `research` extra (PC only).
 **Note (perf, not blocking):** the full `research` stack installs and imports
 cleanly (PyMC 6.0.1, pytensor 3.0.7, LightGBM 4.6.0, arviz 1.2.0). pytensor warns
-`g++ not available` → PyMC runs in a slower fallback. Irrelevant for Phases 1–2;
-**before Phase 3 (MCMC)**, install a C toolchain (e.g. m2w64 `gxx`/mingw-w64) on
-the PC for fast sampling.
+`g++ not available` → PyMC's default sampler runs in a slow fallback.
+**Resolved for Phase 3 without a compiler:** we sample with **nutpie** (numba
+backend), which JITs the model and needs no C toolchain — a 50-team/2000-match
+hierarchical model samples in ~8s. So the "install a C compiler" step is no longer
+required (superseded by decision 009).
 
 ### 007 — Competition-agnostic core, World Cup as first target   (accepted) 2026-06-22
 **Decision:** Near-term validation focus is the **World Cup**, but the data model,
@@ -189,3 +199,31 @@ the comparison.
 
 **Phase 2 result:** see `research/notes/02-phase2-dixon-coles.md` (Dixon–Coles
 beats Elo on RPS and log loss; acceptance PASS).
+
+---
+
+## Phase 3 implementation decisions   (accepted) 2026-06-23
+
+### P3-01 — Single-holdout eval for the Bayesian model (not full walk-forward)
+**Decision:** Evaluate the Bayesian model on one recent time-ordered holdout
+(`research/exp_phase3.py`), not the 36-origin walk-forward used for cheap models.
+**Why:** MCMC per fit is ~10s+; a full walk-forward is impractical. One honest
+holdout suffices to compare against Dixon–Coles on identical splits.
+
+### P3-02 — Recency via hard window, time-decay off
+**Decision:** Bayesian model trains on a 2000-day window; the exponential
+time-decay knob (`half_life_days`) defaults off.
+**Why:** Empirically the window alone beat window+decay (0.1639 vs 0.1657 RPS) —
+the two recency mechanisms double-count. Knob retained for experiments.
+
+### P3-03 — Convergence gating via self-contained split-R-hat
+**Decision:** Compute max split-R-hat in-house (not via arviz) and expose a
+`converged` flag; `strict=True` refuses to emit forecasts from a non-converged fit.
+**Why:** Robust to arviz API differences; a bad fit must never reach the store.
+
+**Phase 3 result (qualified PASS):** converges (max R-hat 1.009); partial pooling
+demonstrated emphatically (corr(log #matches, attack sd) = −0.972); **slightly
+trails** the well-tuned Dixon–Coles on aggregate holdout RPS (0.1639 vs 0.1593) —
+the honest outcome roadmap 3.5 anticipates. The Bayesian model's value is
+calibrated uncertainty for sparse teams, not aggregate point accuracy. Full
+write-up: `research/notes/03-phase3-bayesian.md`.

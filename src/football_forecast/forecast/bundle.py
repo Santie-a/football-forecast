@@ -19,9 +19,15 @@ DEFAULT_LINES = (1.5, 2.5, 3.5)
 
 
 def markets_for_model(model, fixture: Fixture) -> dict[str, dict]:
-    """Full market bundle for a goal model (exposes `rates`); 1X2 only for a
-    result-only model (e.g. Elo). The single place that decides what each model
-    type publishes — reused by the forecast pipeline and the queue drainer."""
+    """Full market bundle for a goal model; 1X2 only for a result-only model (Elo).
+    The single place that decides what each model type publishes — reused by the
+    forecast pipeline and the queue drainer.
+
+    A model may expose `scoreline(fixture)` to supply its own matrix (e.g. the
+    Bayesian posterior-predictive); otherwise the matrix is built from `rates()`.
+    """
+    if hasattr(model, "scoreline"):
+        return build_markets(model.scoreline(fixture))
     if hasattr(model, "rates"):
         lh, la = model.rates(fixture)
         rho = getattr(model, "rho_", None) if getattr(model, "use_dc", False) else None

@@ -17,11 +17,17 @@ import pandas as pd
 
 from football_forecast.data.schema import Fixture
 from football_forecast.forecast.bundle import markets_for_model
+from football_forecast.models.bayesian import BayesianModel
 from football_forecast.models.dixon_coles import DixonColesModel, MaherModel
 from football_forecast.models.elo import EloModel
 from football_forecast.store.forecasts import DEFAULT_PATH, write_forecasts
 
-FACTORIES = {"elo": EloModel, "maher": MaherModel, "dixon_coles": DixonColesModel}
+FACTORIES = {
+    "elo": EloModel,
+    "maher": MaherModel,
+    "dixon_coles": DixonColesModel,
+    "bayesian": BayesianModel,
+}
 
 
 def main() -> None:

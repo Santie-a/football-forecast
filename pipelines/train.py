@@ -16,9 +16,16 @@ from pathlib import Path
 
 import pandas as pd
 
+from football_forecast.models.bayesian import BayesianModel
+from football_forecast.models.dixon_coles import DixonColesModel, MaherModel
 from football_forecast.models.elo import EloModel
 
-FACTORIES = {"elo": EloModel}
+FACTORIES = {
+    "elo": EloModel,
+    "maher": MaherModel,
+    "dixon_coles": DixonColesModel,
+    "bayesian": BayesianModel,
+}
 
 
 def main() -> None:
