@@ -26,7 +26,8 @@ serves a lightweight dashboard that reads precomputed forecasts. Full rationale:
 
 | Doc | Purpose |
 |-----|---------|
-| [`roadmap.md`](roadmap.md) | The research/build plan — what to build and in what order |
+| [`roadmap.md`](roadmap.md) | The **research** plan — what to learn and in what order (the *why*) |
+| [`docs/implementation-plan.md`](docs/implementation-plan.md) | The **dev** plan — modules, contracts, build sequence, acceptance criteria (the *how*) |
 | [`CLAUDE.md`](CLAUDE.md) | Session primer for AI-assisted work; conventions at a glance |
 | [`docs/models-explained.md`](docs/models-explained.md) | **Plain-language + math walkthrough of every model** — read this to understand the machinery |
 | [`docs/architecture.md`](docs/architecture.md) | PC↔Pi compute split, artifact store, app design |

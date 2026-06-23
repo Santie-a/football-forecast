@@ -40,6 +40,36 @@ uvicorn app.main:app --reload        # dashboard at http://localhost:8000
 pytest                               # tests
 ```
 
+## Reproducing a phase's results
+
+At the end of every phase (and whenever results are reported), the work must come
+with an exact recipe to regenerate it from scratch — no "it worked on my machine".
+A phase's reproduce note records:
+
+1. **Environment** — Python 3.12 `.venv`, `pip install -e ".[dev,research]"`
+   (commit hash / `pip freeze` if deps changed).
+2. **Data** — which source + snapshot/date was ingested (`pipelines.ingest`), so
+   the same rows come back. Raw data is immutable (`data/raw/`).
+3. **Exact commands, in order** — the pipeline invocations with their config/flags.
+4. **Seeds** — every random seed used (Elo has none; MCMC and boosting do).
+5. **Expected outputs** — the metric numbers (RPS, log loss, …) a correct rerun
+   should reproduce, and where the artifacts land (`artifacts/...`).
+
+Example skeleton (fill in per phase):
+
+```bash
+# Phase N — <title>   (commit <hash>, seed <s>)
+pip install -e ".[dev,research]"
+python -m pipelines.ingest   --source <...> --asof <YYYY-MM-DD>
+python -m pipelines.train    --model <...> --seed <s>
+python -m pipelines.backtest --model <...> --seed <s>   # → RPS ≈ <x>, log loss ≈ <y>
+python -m pipelines.forecast --model <...>
+```
+
+> **Convention:** when a phase is completed, the reproduce note is written into that
+> phase's research write-up in `research/notes/` (and surfaced in the session
+> summary), so any result can be regenerated and audited later.
+
 ## Publishing forecasts to the Pi
 
 1. Run `pipelines.forecast` on the PC → refreshes `artifacts/forecasts/forecasts.sqlite`.
